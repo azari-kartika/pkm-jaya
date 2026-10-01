@@ -31,7 +31,7 @@ const observer = new IntersectionObserver((entries, obs) => {
 
 document.querySelectorAll(".reveal").forEach(el => observer.observe(el));
 
-const galleryAlbums = {
+const fallbackGalleryAlbums = {
   "Kegiatan kelas": [
     { image: "assets/mi-al-hidayah-google-maps-photo.jpg", caption: "Kegiatan kelas" },
     { image: "assets/mi-al-hidayah-google-maps-photo-3.jpg", caption: "Kegiatan kelas" },
@@ -46,6 +46,7 @@ const galleryAlbums = {
 };
 const albumControls = document.querySelector(".gallery-albums");
 const galleryGrid = document.querySelector(".gallery-grid");
+let galleryAlbums = fallbackGalleryAlbums;
 let activeAlbumName = Object.keys(galleryAlbums)[0];
 let activeAlbum = galleryAlbums[activeAlbumName];
 const lightbox = document.querySelector(".gallery-lightbox");
@@ -66,6 +67,7 @@ const showGalleryImage = index => {
 const renderAlbum = albumName => {
   activeAlbumName = albumName;
   activeAlbum = galleryAlbums[albumName];
+  if (!activeAlbum?.length) return;
   albumControls.querySelectorAll("button").forEach(button => {
     const selected = button.dataset.album === albumName;
     button.classList.toggle("active", selected);
@@ -92,16 +94,183 @@ const renderAlbum = albumName => {
   }));
 };
 
-Object.keys(galleryAlbums).forEach(albumName => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "gallery-album";
-  button.dataset.album = albumName;
-  button.textContent = `${albumName} (${galleryAlbums[albumName].length})`;
-  button.addEventListener("click", () => renderAlbum(albumName));
-  albumControls.append(button);
+const renderAlbums = albums => {
+  galleryAlbums = albums;
+  const names = Object.keys(galleryAlbums);
+  albumControls.replaceChildren();
+  if (!names.length) {
+    galleryGrid.replaceChildren();
+    return;
+  }
+  activeAlbumName = names[0];
+  names.forEach(albumName => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "gallery-album";
+    button.dataset.album = albumName;
+    button.textContent = `${albumName} (${galleryAlbums[albumName].length})`;
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => renderAlbum(albumName));
+    albumControls.append(button);
+  });
+  renderAlbum(activeAlbumName);
+};
+
+const renderNews = items => {
+  const list = document.querySelector("#cms-news-list");
+  list.replaceChildren(...items.map((item, index) => {
+    const article = document.createElement("article");
+    article.className = `news-card reveal visible${index ? ` delay-${Math.min(index, 3)}` : ""}`;
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "news-card-action";
+    action.setAttribute("aria-label", `Buka berita: ${item.title}`);
+    const thumb = document.createElement("div");
+    const hasImage = typeof item.imageUrl === "string" && item.imageUrl.trim().length > 0;
+    thumb.className = `news-thumb${hasImage ? "" : " news-thumb-empty"}`;
+    if (hasImage) thumb.style.backgroundImage = `linear-gradient(180deg, transparent, rgba(0,0,0,.45)), url("${item.imageUrl}")`;
+    const date = new Date(`${item.publishedAt || ""}T00:00:00`);
+    const dateText = Number.isNaN(date.getTime()) ? (item.dateLabel || "") : new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(date);
+    const dateBadge = document.createElement("span");
+    dateBadge.textContent = dateText;
+    thumb.append(dateBadge);
+    const details = document.createElement("div");
+    const dateSmall = document.createElement("small");
+    dateSmall.textContent = dateText;
+    const title = document.createElement("h3");
+    title.textContent = item.title;
+    details.append(dateSmall, title);
+    if (item.excerpt) {
+      const excerpt = document.createElement("p");
+      excerpt.className = "news-excerpt";
+      excerpt.textContent = item.excerpt;
+      details.append(excerpt);
+    }
+    action.append(thumb, details);
+    action.addEventListener("click", () => openNews(item));
+    article.append(action);
+    if (item.link) {
+      const link = document.createElement("a");
+      link.href = item.link;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "→";
+      link.setAttribute("aria-label", `Baca ${item.title}`);
+      link.className = "news-card-link";
+      article.append(link);
+    }
+    return article;
+  }));
+};
+
+const newsDialog = document.querySelector("#news-dialog");
+const newsDialogClose = document.querySelector(".news-dialog-close");
+const openNews = item => {
+  const date = new Date(`${item.publishedAt || ""}T00:00:00`);
+  const dateText = Number.isNaN(date.getTime()) ? (item.dateLabel || "") : new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  const image = newsDialog.querySelector(".news-dialog-image");
+  const hasImage = typeof item.imageUrl === "string" && item.imageUrl.trim().length > 0;
+  image.hidden = !hasImage;
+  if (hasImage) image.src = item.imageUrl;
+  else image.removeAttribute("src");
+  image.alt = item.title || "";
+  newsDialog.querySelector(".news-dialog-date").textContent = dateText;
+  newsDialog.querySelector("#news-dialog-title").textContent = item.title || "Berita sekolah";
+
+  const excerpt = newsDialog.querySelector(".news-dialog-excerpt");
+  excerpt.hidden = !item.excerpt;
+  excerpt.textContent = item.excerpt || "";
+  const body = newsDialog.querySelector(".news-dialog-body");
+  body.replaceChildren();
+  if (item.body) {
+    item.body.split(/\n\s*\n/).filter(Boolean).forEach(paragraph => {
+      const element = document.createElement("p");
+      element.textContent = paragraph;
+      body.append(element);
+    });
+  } else if (!item.excerpt) {
+    const empty = document.createElement("p");
+    empty.textContent = "Informasi selengkapnya belum ditambahkan.";
+    body.append(empty);
+  }
+
+  const moreLink = newsDialog.querySelector(".news-dialog-link");
+  moreLink.hidden = !item.link;
+  moreLink.href = item.link || "#";
+  newsDialog.showModal();
+};
+
+newsDialogClose.addEventListener("click", () => newsDialog.close());
+newsDialog.addEventListener("click", event => {
+  if (event.target === newsDialog) newsDialog.close();
 });
-renderAlbum(activeAlbumName);
+
+const fallbackNews = [
+  { title: "Hari Pendidikan Nasional di MI PKM Jaya Unpam", publishedAt: "2025-09-12", dateLabel: "12 September 2025" },
+  { title: "Tim Basket Raih Juara 1 Tingkat Kota", publishedAt: "2025-09-05", dateLabel: "5 September 2025" },
+  { title: "Workshop Pengembangan Diri untuk Siswa Kelas XII", publishedAt: "2025-08-28", dateLabel: "28 Agustus 2025" }
+];
+
+const renderAchievements = items => {
+  const container = document.querySelector("#cms-achievements");
+  container.replaceChildren(...items.map((item, index) => {
+    const row = document.createElement("div");
+    row.className = "achievement";
+    const number = document.createElement("span");
+    number.textContent = String(index + 1).padStart(2, "0");
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = item.title;
+    const description = document.createElement("small");
+    description.textContent = [item.award, item.level, item.year].filter(Boolean).join(" · ");
+    details.append(title, description);
+    const icon = document.createElement("b");
+    icon.textContent = item.icon || "★";
+    row.append(number, details, icon);
+    return row;
+  }));
+};
+
+const fallbackAchievements = [
+  { title: "Olimpiade Matematika", award: "Juara 1", level: "Tingkat Kota", icon: "🥇" },
+  { title: "Lomba Debat Bahasa", award: "Juara 2", level: "Tingkat Provinsi", icon: "🥈" },
+  { title: "Kompetisi Sains Nasional", award: "Juara 3", level: "Bidang Biologi", icon: "🥉" }
+];
+
+const sanityQuery = async query => {
+  const config = window.SCHOOL_CMS || {};
+  if (!/^[a-z0-9]{5,}$/i.test(config.projectId || "") || config.projectId.startsWith("YOUR_")) return null;
+  const endpoint = `https://${config.projectId}.api.sanity.io/v${config.apiVersion || "2025-01-01"}/data/query/${encodeURIComponent(config.dataset || "production")}?query=${encodeURIComponent(query)}`;
+  const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`CMS request failed (${response.status})`);
+  const payload = await response.json();
+  return payload.result || [];
+};
+
+const loadCmsContent = async () => {
+  renderNews(fallbackNews);
+  renderAchievements(fallbackAchievements);
+  renderAlbums(fallbackGalleryAlbums);
+  try {
+    const [news, achievements, albums] = await Promise.all([
+      sanityQuery('*[_type == "schoolNews" && defined(publishedAt)] | order(publishedAt desc)[0...3]{_id,title,publishedAt,excerpt,body,link,"imageUrl":image.asset->url}'),
+      sanityQuery('*[_type == "schoolAchievement"] | order(order asc)[0...6]{_id,title,award,level,year,icon}'),
+      sanityQuery('*[_type == "schoolAlbum"] | order(order asc){_id,title,"photos":photos[]{caption,"imageUrl":image.asset->url}}')
+    ]);
+    if (news?.length) renderNews(news);
+    if (achievements?.length) renderAchievements(achievements);
+    if (albums?.length) {
+      const mappedAlbums = Object.fromEntries(albums.map(album => [album.title, (album.photos || []).filter(photo => photo.imageUrl).map(photo => ({ image: photo.imageUrl, caption: photo.caption || album.title }))]));
+      const nonEmptyAlbums = Object.fromEntries(Object.entries(mappedAlbums).filter(([, photos]) => photos.length));
+      if (Object.keys(nonEmptyAlbums).length) renderAlbums(nonEmptyAlbums);
+    }
+  } catch (error) {
+    console.warn("CMS unavailable; showing the built-in sample content.", error);
+  }
+};
+
+renderAlbums(fallbackGalleryAlbums);
+loadCmsContent();
 
 const closeGallery = () => {
   lightbox.classList.remove("open");

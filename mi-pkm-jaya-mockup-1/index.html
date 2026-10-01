@@ -157,28 +157,13 @@
             <div><span class="section-kicker">Informasi terbaru</span><h2>Berita & Kegiatan</h2></div>
             <a class="text-link" href="#berita">Lihat semua <span>→</span></a>
           </div>
-          <div class="news-list">
-            <article class="news-card reveal">
-              <div class="news-thumb thumb-1"><span>12 SEP</span></div>
-              <div><small>12 September 2025</small><h3>Hari Pendidikan Nasional di MI PKM Jaya Unpam</h3><a href="#berita" aria-label="Baca berita">→</a></div>
-            </article>
-            <article class="news-card reveal delay-1">
-              <div class="news-thumb thumb-2"><span>05 SEP</span></div>
-              <div><small>5 September 2025</small><h3>Tim Basket Raih Juara 1 Tingkat Kota</h3><a href="#berita" aria-label="Baca berita">→</a></div>
-            </article>
-            <article class="news-card reveal delay-2">
-              <div class="news-thumb thumb-3"><span>28 AGS</span></div>
-              <div><small>28 Agustus 2025</small><h3>Workshop Pengembangan Diri untuk Siswa Kelas XII</h3><a href="#berita" aria-label="Baca berita">→</a></div>
-            </article>
-          </div>
+          <div class="news-list" id="cms-news-list" aria-live="polite"></div>
         </div>
 
         <aside class="achievement-panel reveal delay-1" id="prestasi">
           <span class="section-kicker">Kebanggaan sekolah</span>
           <h2>Prestasi Siswa</h2>
-          <div class="achievement"><span>01</span><div><strong>Olimpiade Matematika</strong><small>Juara 1 · Tingkat Kota</small></div><b>🥇</b></div>
-          <div class="achievement"><span>02</span><div><strong>Lomba Debat Bahasa</strong><small>Juara 2 · Tingkat Provinsi</small></div><b>🥈</b></div>
-          <div class="achievement"><span>03</span><div><strong>Kompetisi Sains Nasional</strong><small>Juara 3 · Bidang Biologi</small></div><b>🥉</b></div>
+          <div id="cms-achievements" aria-live="polite"></div>
         </aside>
       </div>
     </section>
@@ -210,8 +195,7 @@
           <a class="text-link" href="#galeri">Lihat galeri <span>→</span></a>
         </div>
         <div class="gallery-albums" role="group" aria-label="Pilih album"></div>
-        <div class="gallery-grid">
-        </div>
+        <div class="gallery-grid"></div>
       </div>
     </section>
 
@@ -249,6 +233,19 @@
     <button class="lightbox-nav lightbox-next" type="button" aria-label="Foto berikutnya">&#8250;</button>
   </div>
 
+  <dialog class="news-dialog" id="news-dialog" aria-labelledby="news-dialog-title">
+    <button class="news-dialog-close" type="button" aria-label="Tutup berita">&times;</button>
+    <div class="news-dialog-content">
+      <img class="news-dialog-image" alt="" hidden>
+      <time class="news-dialog-date"></time>
+      <h2 id="news-dialog-title"></h2>
+      <p class="news-dialog-excerpt" hidden></p>
+      <div class="news-dialog-body"></div>
+      <a class="news-dialog-link" target="_blank" rel="noopener noreferrer" hidden>Baca berita selengkapnya ↗</a>
+    </div>
+  </dialog>
+
+  <script src="js/cms-config.js"></script>
   <script src="js/script.js"></script>
 </body>
 </html>
