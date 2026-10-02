@@ -116,9 +116,18 @@ const renderAlbums = albums => {
   renderAlbum(activeAlbumName);
 };
 
-const renderNews = items => {
+const NEWS_PAGE_SIZE = 3;
+let newsOffset = 0;
+let newsHasMore = false;
+let newsHasPrevious = false;
+let newsLoading = false;
+let newsTotalCount = 0;
+
+const renderNews = (items, append = false) => {
   const list = document.querySelector("#cms-news-list");
-  list.replaceChildren(...items.map((item, index) => {
+  const startIndex = append ? list.children.length : 0;
+  const cards = items.map((item, offset) => {
+    const index = startIndex + offset;
     const article = document.createElement("article");
     article.className = `news-card reveal visible${index ? ` delay-${Math.min(index, 3)}` : ""}`;
     const action = document.createElement("button");
@@ -160,8 +169,58 @@ const renderNews = items => {
       article.append(link);
     }
     return article;
-  }));
+  });
+  if (append) list.append(...cards);
+  else list.replaceChildren(...cards);
 };
+
+const newsLoadMore = document.querySelector("#news-load-more");
+const newsPrevious = document.querySelector("#news-previous");
+const newsPageIndicator = document.querySelector("#news-page-indicator");
+const updateNewsLoadMore = () => {
+  const totalPages = Math.max(1, Math.ceil(newsTotalCount / NEWS_PAGE_SIZE));
+  const currentPage = Math.floor(newsOffset / NEWS_PAGE_SIZE) + 1;
+  if (newsPageIndicator) {
+    newsPageIndicator.hidden = totalPages <= 1;
+    newsPageIndicator.textContent = `Halaman ${currentPage} dari ${totalPages}`;
+  }
+  if (newsLoadMore) {
+    newsLoadMore.hidden = !newsHasMore;
+    newsLoadMore.disabled = newsLoading;
+    newsLoadMore.innerHTML = newsLoading ? 'Memuat berita...' : 'Berita berikutnya <span aria-hidden="true">→</span>';
+  }
+  if (newsPrevious) {
+    newsPrevious.hidden = !newsHasPrevious;
+    newsPrevious.disabled = newsLoading;
+  }
+};
+
+const fetchNewsPage = offset => sanityQuery(
+  `*[_type == "schoolNews" && defined(publishedAt)] | order(publishedAt desc)[${offset}...${offset + NEWS_PAGE_SIZE + 1}]{_id,title,publishedAt,excerpt,body,link,"imageUrl":image.asset->url}`
+);
+
+const navigateNews = async direction => {
+  if (newsLoading || (direction > 0 && !newsHasMore) || (direction < 0 && !newsHasPrevious)) return;
+  newsLoading = true;
+  updateNewsLoadMore();
+  try {
+    const targetOffset = Math.max(0, newsOffset + direction * NEWS_PAGE_SIZE);
+    const page = (await fetchNewsPage(targetOffset)) || [];
+    const visibleItems = page.slice(0, NEWS_PAGE_SIZE);
+    renderNews(visibleItems);
+    newsOffset = targetOffset;
+    newsHasPrevious = newsOffset > 0;
+    newsHasMore = page.length > NEWS_PAGE_SIZE;
+  } catch (error) {
+    console.warn("Could not change school news page.", error);
+  } finally {
+    newsLoading = false;
+    updateNewsLoadMore();
+  }
+};
+
+newsLoadMore?.addEventListener("click", () => navigateNews(1));
+newsPrevious?.addEventListener("click", () => navigateNews(-1));
 
 const newsDialog = document.querySelector("#news-dialog");
 const newsDialogClose = document.querySelector(".news-dialog-close");
@@ -244,20 +303,34 @@ const sanityQuery = async query => {
   const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`CMS request failed (${response.status})`);
   const payload = await response.json();
-  return payload.result || [];
+  return payload.result ?? [];
 };
 
 const loadCmsContent = async () => {
+  newsTotalCount = fallbackNews.length;
   renderNews(fallbackNews);
   renderAchievements(fallbackAchievements);
   renderAlbums(fallbackGalleryAlbums);
   try {
-    const [news, achievements, albums] = await Promise.all([
-      sanityQuery('*[_type == "schoolNews" && defined(publishedAt)] | order(publishedAt desc)[0...3]{_id,title,publishedAt,excerpt,body,link,"imageUrl":image.asset->url}'),
+    const [newsPage, newsCount, achievements, albums] = await Promise.all([
+      fetchNewsPage(0),
+      sanityQuery('count(*[_type == "schoolNews" && defined(publishedAt)])'),
       sanityQuery('*[_type == "schoolAchievement"] | order(order asc)[0...6]{_id,title,award,level,year,icon}'),
       sanityQuery('*[_type == "schoolAlbum"] | order(order asc){_id,title,"photos":photos[]{caption,"imageUrl":image.asset->url}}')
     ]);
-    if (news?.length) renderNews(news);
+    if (typeof newsCount === "number") newsTotalCount = newsCount;
+    if (newsPage?.length) {
+      const initialNews = newsPage.slice(0, NEWS_PAGE_SIZE);
+      renderNews(initialNews);
+      newsOffset = 0;
+      newsHasPrevious = false;
+      newsHasMore = newsPage.length > NEWS_PAGE_SIZE;
+      updateNewsLoadMore();
+    } else {
+      newsTotalCount = 0;
+      newsHasMore = false;
+      updateNewsLoadMore();
+    }
     if (achievements?.length) renderAchievements(achievements);
     if (albums?.length) {
       const mappedAlbums = Object.fromEntries(albums.map(album => [album.title, (album.photos || []).filter(photo => photo.imageUrl).map(photo => ({ image: photo.imageUrl, caption: photo.caption || album.title }))]));
